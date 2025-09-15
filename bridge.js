@@ -1,61 +1,67 @@
 // bridge.js
+const WebSocket = require("ws");
 const fetch = require("node-fetch");
-const fs = require("fs");
 
-const ROOM = "msg"; // 👈 replace with your tlk.io room
-const URL = `https://tlk.io/${ROOM}`;
-const STATE_FILE = "lastMessage.txt";
+// 🔧 Replace with your room
+const ROOM = "test";
+const WS_URL = `wss://tlk.io/socket.io/?EIO=3&transport=websocket&room=${ROOM}`;
 
-async function getMessages() {
-  const res = await fetch(URL);
-  const html = await res.text();
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-  // Extract chat messages from HTML (tlk.io puts them in <p class="message_body">)
-  const matches = [...html.matchAll(/<p class="message_body[^>]*">(.*?)<\/p>/g)];
-  return matches.map(m => m[1].replace(/<[^>]*>/g, "").trim());
+if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.error("❌ Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID");
+  process.exit(1);
 }
 
 async function sendToTelegram(msg) {
-  const token = process.env.TELEGRAM_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) {
-    console.error("❌ Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID");
-    return;
+  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: msg }),
+    });
+  } catch (err) {
+    console.error("❌ Telegram error:", err);
   }
-
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: msg }),
-  });
 }
 
-(async () => {
-  try {
-    const messages = await getMessages();
-    if (messages.length === 0) {
-      console.log("⚠️ No messages found in room:", ROOM);
-      return;
-    }
+console.log("🔗 Connecting to tlk.io room:", ROOM);
 
-    const latest = messages[messages.length - 1];
-    let lastSent = "";
+const ws = new WebSocket(WS_URL);
 
-    if (fs.existsSync(STATE_FILE)) {
-      lastSent = fs.readFileSync(STATE_FILE, "utf8").trim();
-    }
+ws.on("open", () => {
+  console.log("✅ Connected to tlk.io WebSocket");
+});
 
-    if (latest && latest !== lastSent) {
-      console.log("✅ Sending new message:", latest);
-      await sendToTelegram(`💬 New message in ${ROOM}:\n${latest}`);
-      fs.writeFileSync(STATE_FILE, latest);
-    } else {
-      console.log("ℹ️ No new messages.");
+ws.on("message", (data) => {
+  const msg = data.toString();
+
+  // tlk.io uses socket.io protocol (messages start with numbers + JSON)
+  if (msg.startsWith("42")) {
+    try {
+      const payload = JSON.parse(msg.slice(2)); // strip socket.io prefix
+      const [event, content] = payload;
+
+      if (event === "message") {
+        const user = content.author && content.author.name ? content.author.name : "Anonymous";
+        const text = content.body || "";
+        const fullMsg = `💬 New message in ${ROOM}\n👤 ${user}\n📝 ${text}`;
+
+        console.log(fullMsg);
+        sendToTelegram(fullMsg);
+      }
+    } catch (err) {
+      console.error("⚠️ Parse error:", err);
     }
-  } catch (err) {
-    console.error("❌ Error:", err);
   }
-})();
+});
+
+ws.on("close", () => {
+  console.log("❌ Disconnected from WebSocket");
+});
+
+ws.on("error", (err) => {
+  console.error("⚠️ WebSocket error:", err);
+});
