@@ -1,10 +1,12 @@
 const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 const fs = require("fs");
+const path = require("path");
 
-const ROOM = "msg"; // your tlk.io room
+const ROOM = "msg"; // tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
-const LAST_FILE = "lastMessages.json";
+const LAST_FILE = path.join(__dirname, "lastMessages.json");
+const DEBUG_FILE = path.join(__dirname, "debug.html");
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -14,12 +16,14 @@ if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
   process.exit(1);
 }
 
-// Load last messages
+// Load last messages to prevent duplicates
 let seen = [];
-if (fs.existsSync(LAST_FILE)) {
-  try {
+try {
+  if (fs.existsSync(LAST_FILE)) {
     seen = JSON.parse(fs.readFileSync(LAST_FILE, "utf-8"));
-  } catch {}
+  }
+} catch (err) {
+  console.warn("⚠️ Could not read lastMessages.json:", err.message);
 }
 
 async function sendToTelegram(msg) {
@@ -30,72 +34,74 @@ async function sendToTelegram(msg) {
   });
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 (async () => {
-  console.log(`🔎 Checking tlk.io room: ${ROOM}`);
+  console.log(`🔎 Launching tlk.io room: ${ROOM}`);
   const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
   const page = await browser.newPage();
 
   await page.goto(URL, { waitUntil: "networkidle2" });
-  await sleep(5000);
+  await page.waitForSelector("dd.post-message"); // wait for at least one message
 
+  // Save debug.html once at startup
   const html = await page.content();
-  fs.writeFileSync("debug.html", html); // temporarily save
+  fs.writeFileSync(DEBUG_FILE, html);
 
-  // Select post-message elements
-  const messages = await page.evaluate(() => {
-    const out = [];
-    const nodes = document.querySelectorAll("dd.post-message");
+  console.log("✅ Listening for new messages...");
 
-    nodes.forEach(node => {
-      // Get direct text content, ignoring child divs
-      const text = Array.from(node.childNodes)
-        .filter(n => n.nodeType === Node.TEXT_NODE)
-        .map(n => n.textContent.trim())
-        .join(" ")
-        .trim();
+  // Real-time message detection via MutationObserver
+  await page.exposeFunction("notifyNode", async node => {
+    // Get timestamp and text
+    const timestamp = node.getAttribute("data-timestamp") || Date.now();
+    const text = Array.from(node.childNodes)
+      .filter(n => n.nodeType === Node.TEXT_NODE)
+      .map(n => n.textContent.trim())
+      .join(" ")
+      .trim();
+    if (!text) return;
 
-      if (!text) return;
+    // Check duplicates
+    if (seen.find(m => m.timestamp === timestamp)) return;
 
-      const timestamp = node.getAttribute("data-timestamp") || Date.now();
-      out.push({ user: "Anonymous", text, timestamp });
-    });
+    // Add to seen
+    const message = { user: "Anonymous", text, timestamp };
+    seen.push(message);
 
-    return out;
-  });
-
-  await browser.close();
-
-  if (!messages || messages.length === 0) {
-    console.log("⚠️ No chat messages found. Check debug.html");
-  } else {
-    // Filter only new messages
-    const newOnes = messages.filter(
-      m => !seen.find(s => s.timestamp === m.timestamp)
-    );
-
-    if (newOnes.length === 0) {
-      console.log("⚠️ No new messages since last check");
-    } else {
-      for (const msg of newOnes) {
-        const fullMsg = `💬 New message in ${ROOM}\n👤 ${msg.user}\n📝 ${msg.text}`;
-        console.log(fullMsg);
-        await sendToTelegram(fullMsg);
-      }
-    }
+    // Send Telegram
+    const fullMsg = `💬 New message in ${ROOM}\n👤 ${message.user}\n📝 ${message.text}`;
+    console.log(fullMsg);
+    await sendToTelegram(fullMsg);
 
     // Save last messages
-    fs.writeFileSync(LAST_FILE, JSON.stringify(messages, null, 2));
-  }
+    fs.writeFileSync(LAST_FILE, JSON.stringify(seen, null, 2));
+  });
 
-  // Delete debug.html after run
-  try {
-    fs.unlinkSync("debug.html");
-    console.log("🗑️ debug.html deleted after run");
-  } catch (err) {
-    console.warn("⚠️ Could not delete debug.html:", err.message);
-  }
+  // Inject MutationObserver into the page
+  await page.evaluate(() => {
+    const container = document.querySelector("dd.post-message")?.parentElement;
+    if (!container) return;
+
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(m => {
+        m.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains("post-message")) {
+            // Notify Node.js
+            window.notifyNode(node);
+          }
+        });
+      });
+    });
+
+    observer.observe(container, { childList: true, subtree: false });
+  });
+
+  // Keep script running
+  process.on("SIGINT", async () => {
+    console.log("\n🛑 Exiting...");
+    await browser.close();
+    try {
+      fs.unlinkSync(DEBUG_FILE);
+      console.log("🗑️ debug.html deleted");
+    } catch {}
+    process.exit();
+  });
 })();
