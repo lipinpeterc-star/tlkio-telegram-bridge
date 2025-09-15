@@ -1,9 +1,9 @@
-name: tlk.io → Telegram
+name: tlk.io → Telegram (Poll)
 
 on:
-  workflow_dispatch:        # allow manual trigger
   schedule:
-    - cron: "*/9999999999 * * * *"   # optional: run every 5 minutes (polling style)
+    - cron: "*/999999999 * * * *"   # every 5 minutes
+  workflow_dispatch:        # allow manual run
 
 jobs:
   notify:
@@ -16,10 +16,10 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           npm init -y
-          npm install socket.io-client node-fetch@2
+          npm install node-fetch@2 jsdom
 
       - name: Run bridge
         run: node bridge.js
