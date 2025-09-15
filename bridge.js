@@ -34,8 +34,25 @@ async function checkRSS() {
     console.log('🤖 Checking tlk.io RSS feed...');
 
     try {
-        // FIXED: Use the parser instance to call parseURL
-        const feed = await parser.parseURL(RSS_FEED_URL);
+        // FIX: Add headers to the request to avoid 406 error
+        const feed = await parser.parseURL(RSS_FEED_URL, {
+            requestOptions: {
+                headers: {
+                    // These headers make the request look like it's from a real web browser
+                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'accept-language': 'en-US,en;q=0.9',
+                    'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"',
+                    'sec-fetch-dest': 'document',
+                    'sec-fetch-mode': 'navigate',
+                    'sec-fetch-site': 'none',
+                    'sec-fetch-user': '?1',
+                    'upgrade-insecure-requests': '1',
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                }
+            }
+        });
         if (feed.items.length > 0) {
             const latestMessage = feed.items[0];
             if (latestMessage.title !== lastMessageTitle) {
