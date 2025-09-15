@@ -33,63 +33,82 @@ async function checkRSS() {
     let lastMessageTitle = getLastMessageTitle();
     console.log('🤖 Checking tlk.io RSS feed...');
 
-    try {
-        const feed = await parser.parseURL(RSS_FEED_URL, {
-            requestOptions: {
-                headers: {
-                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                    'accept-language': 'en-US,en;q=0.9',
-                    'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"Windows"',
-                    'sec-fetch-dest': 'document',
-                    'sec-fetch-mode': 'navigate',
-                    'sec-fetch-site': 'none',
-                    'sec-fetch-user': '?1',
-                    'upgrade-insecure-requests': '1',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    // Simple retry mechanism - try 3 times before giving up
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+        try {
+            const feed = await parser.parseURL(RSS_FEED_URL, {
+                timeout: 10000, // FIX: Wait up to 10 seconds for a response (default is much lower)
+                requestOptions: {
+                    headers: {
+                        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'accept-language': 'en-US,en;q=0.9',
+                        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                        'sec-ch-ua-mobile': '?0',
+                        'sec-ch-ua-platform': '"Windows"',
+                        'sec-fetch-dest': 'document',
+                        'sec-fetch-mode': 'navigate',
+                        'sec-fetch-site': 'none',
+                        'sec-fetch-user': '?1',
+                        'upgrade-insecure-requests': '1',
+                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                    }
                 }
-            }
-        });
+            });
 
-        // FIX: Add defensive checks here!
-        if (!feed) {
-            console.log('❌ Error: Feed object is undefined or null.');
-            return;
-        }
-
-        if (!feed.items || !Array.isArray(feed.items)) {
-            console.log('❌ Error: Feed items is not an array or is missing.', feed);
-            return;
-        }
-
-        console.log(`ℹ️ Found ${feed.items.length} items in the feed.`);
-
-        if (feed.items.length > 0) {
-            const latestMessage = feed.items[0];
-            // Check if the items have the properties we expect
-            if (!latestMessage.title) {
-                console.log('❌ Error: The latest message does not have a title property.', latestMessage);
+            // FIX: Add defensive checks here!
+            if (!feed) {
+                console.log('❌ Error: Feed object is undefined or null.');
                 return;
             }
-            if (latestMessage.title !== lastMessageTitle) {
-                console.log('✅ New message found!: ' + latestMessage.title);
-                // Use optional chaining (?.) and a fallback in case 'creator' is missing
-                const creator = latestMessage.creator || 'Unknown';
-                const telegramMessage = `💬 New message in tlk.io\\nFrom: ${creator}\\nMessage: ${latestMessage.title}`;
-                await sendToTelegram(telegramMessage);
-                setLastMessageTitle(latestMessage.title);
-            } else {
-                console.log('ℹ️ No new messages.');
+
+            if (!feed.items || !Array.isArray(feed.items)) {
+                console.log('❌ Error: Feed items is not an array or is missing.', feed);
+                return;
             }
-        } else {
-            console.log('ℹ️ Feed is empty. No messages found.');
+
+            console.log(`ℹ️ Found ${feed.items.length} items in the feed.`);
+
+            if (feed.items.length > 0) {
+                const latestMessage = feed.items[0];
+                // Check if the items have the properties we expect
+                if (!latestMessage.title) {
+                    console.log('❌ Error: The latest message does not have a title property.', latestMessage);
+                    return;
+                }
+                if (latestMessage.title !== lastMessageTitle) {
+                    console.log('✅ New message found!: ' + latestMessage.title);
+                    // Use optional chaining (?.) and a fallback in case 'creator' is missing
+                    const creator = latestMessage.creator || 'Unknown';
+                    const telegramMessage = `💬 New message in tlk.io\\nFrom: ${creator}\\nMessage: ${latestMessage.title}`;
+                    await sendToTelegram(telegramMessage);
+                    setLastMessageTitle(latestMessage.title);
+                } else {
+                    console.log('ℹ️ No new messages.');
+                }
+            } else {
+                console.log('ℹ️ Feed is empty. No messages found.');
+            }
+            // If we get here, everything worked! Break out of the retry loop.
+            break;
+
+        } catch (error) {
+            retryCount++;
+            console.error(`❌ Attempt ${retryCount}/${maxRetries} failed:`, error.message);
+
+            if (retryCount >= maxRetries) {
+                console.error('❌ All retry attempts failed. Giving up.');
+                break;
+            }
+
+            // Wait 2 seconds before trying again
+            console.log(`🔄 Retrying in 2 seconds...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
-    } catch (error) {
-        console.error('❌ Error:', error);
     }
 }
-
 async function sendToTelegram(message) {
     const data = JSON.stringify({
         chat_id: CHAT_ID,
