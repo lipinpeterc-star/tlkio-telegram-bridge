@@ -1,5 +1,18 @@
 // bridge.js
 const https = require('https');
+// Import the RSS Parser library correctly
+const Parser = require('rss-parser');
+// FIX: Use the correct import syntax for node-fetch
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+// ——— CONFIGURATION ——— //
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
+const RSS_FEED_URL = process.env.RSS_FEED_URL;
+// ... the rest of your code remains exactly the same ...
+
+// bridge.js
+const https = require('https');
 // Import the libraries
 const Parser = require('rss-parser');
 const fetch = require('node-fetch'); // Import node-fetch
