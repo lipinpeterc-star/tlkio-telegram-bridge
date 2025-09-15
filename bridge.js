@@ -2,7 +2,7 @@
 const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 
-const ROOM = "test"; // change this
+const ROOM = "test"; // change to your tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -28,6 +28,10 @@ async function sendToTelegram(msg) {
   }
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 (async () => {
   console.log(`🔎 Opening room: ${ROOM}`);
   const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
@@ -36,7 +40,7 @@ async function sendToTelegram(msg) {
   await page.goto(URL, { waitUntil: "networkidle2" });
 
   // wait a little so JS loads messages
-  await page.waitForTimeout(5000);
+  await sleep(5000);
 
   const messages = await page.evaluate(() => {
     const nodes = document.querySelectorAll(".messages .message");
