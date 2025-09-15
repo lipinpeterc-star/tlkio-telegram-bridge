@@ -1,12 +1,16 @@
 // bridge.js
 const https = require('https');
-const parser = require('rss-parser');
+// Import the RSS Parser library correctly
+const Parser = require('rss-parser');
 
 // ——— CONFIGURATION ——— //
 // !!! IMPORTANT: We will set these secrets in GitHub !!!
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
 const RSS_FEED_URL = process.env.RSS_FEED_URL; // e.g., "https://tlk.io/yourroomname.rss"
+
+// Create a new parser instance
+const parser = new Parser();
 
 // A simple in-memory store for the last message.
 // This is reset every time the action runs, so we use a hidden file for persistence.
@@ -30,6 +34,7 @@ async function checkRSS() {
     console.log('🤖 Checking tlk.io RSS feed...');
 
     try {
+        // FIXED: Use the parser instance to call parseURL
         const feed = await parser.parseURL(RSS_FEED_URL);
         if (feed.items.length > 0) {
             const latestMessage = feed.items[0];
