@@ -1,9 +1,9 @@
 name: tlk.io → Telegram
 
 on:
+  workflow_dispatch:        # manual trigger
   schedule:
-    - cron: "*/9999999 * * * *"   # runs every 5 minutes
-  workflow_dispatch:
+    - cron: "*/9999999999 * * * *"   # optional, run every 5 min
 
 jobs:
   notify:
@@ -19,7 +19,7 @@ jobs:
       - name: Install deps
         run: |
           npm init -y
-          npm install node-fetch@2
+          npm install ws node-fetch@2
 
       - name: Run bridge
         run: node bridge.js
