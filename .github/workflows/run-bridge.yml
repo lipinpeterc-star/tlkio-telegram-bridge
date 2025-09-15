@@ -1,8 +1,8 @@
-name: tlk.io → Telegram (Poll)
+name: tlk.io → Telegram (Puppeteer)
 
 on:
   schedule:
-    - cron: "*/999999999 * * * *"   # every 5 minutes
+    - cron: "*/99999999 * * * *"   # every 5 minutes
   workflow_dispatch:        # allow manual run
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
       - name: Install deps
         run: |
           npm init -y
-          npm install node-fetch@2 jsdom
+          npm install puppeteer node-fetch@2
 
       - name: Run bridge
         run: node bridge.js
