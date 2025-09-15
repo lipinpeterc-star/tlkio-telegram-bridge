@@ -43,38 +43,36 @@ function sleep(ms) {
   await sleep(5000);
 
   const html = await page.content();
+  fs.writeFileSync("debug.html", html); // save for inspection
 
-  // Save debug.html for inspection
-  fs.writeFileSync("debug.html", html);
-
-  // Auto-detect messages: any visible element containing text
-  const messages = await page.evaluate(() => {
+  // Only select chat s, ignore headers/footers
+  const s = await page.evaluate(() => {
     const out = [];
-    // Select all elements with text content
-    const nodes = Array.from(document.querySelectorAll("*")).filter(
-      el => el.textContent && el.offsetParent !== null // visible
-    );
-
-    nodes.forEach(node => {
-      const text = node.textContent.trim();
-      // Heuristic: ignore very short texts like username only or empty
-      if (text.length > 1) {
-        // Try to detect username
-        let user = "Anonymous";
+    // Find main chat container
+    const containers = document.querySelectorAll(".s, .tlkio-s, [data-role='messages']");
+    containers.forEach(container => {
+      // Each chat line
+      const nodes = container.querySelectorAll("[data-role='message'], .message, .post-message");
+      nodes.forEach(node => {
         const userEl = node.querySelector(".username, .tlk-username, .user");
-        if (userEl) user = userEl.textContent.trim();
+        const user = userEl ? userEl.textContent.trim() : "Anonymous";
+
+        const textEl = node.querySelector(".body, .tlk-body, .message-text");
+        if (!textEl) return;
+
+        const text = textEl.textContent.trim();
+        if (!text) return;
 
         out.push({ user, text });
-      }
+      });
     });
-
     return out;
   });
 
   await browser.close();
 
   if (!messages || messages.length === 0) {
-    console.log("⚠️ No messages detected. Check debug.html");
+    console.log("⚠️ No chat messages found. Check debug.html");
     return;
   }
 
