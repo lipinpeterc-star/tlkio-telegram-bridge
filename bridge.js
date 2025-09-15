@@ -56,6 +56,18 @@ async function checkRSS() {
             // Get the response text (XML)
             const xmlText = await response.text();
             console.log('✅ Successfully fetched RSS feed.');
+            
+            // DEBUG: Let's see what we actually received
+            console.log('🔍 First 500 characters of response:');
+            console.log(xmlText.substring(0, 500));
+            
+            // If it's HTML, we might see <!DOCTYPE or <html> tags
+            if (xmlText.includes('<!DOCTYPE') || xmlText.includes('<html')) {
+                console.log('❌ Server returned HTML instead of RSS. This might be a CAPTCHA or error page.');
+                // Let's also check the final URL in case of redirects
+                console.log('🔗 Final URL:', response.url);
+                throw new Error('Received HTML content instead of RSS');
+            }
 
             // Now parse the XML text with rss-parser
             const feed = await parser.parseString(xmlText);
@@ -103,7 +115,6 @@ async function checkRSS() {
         }
     }
 }
-
 async function sendToTelegram(message) {
     const data = JSON.stringify({
         chat_id: CHAT_ID,
