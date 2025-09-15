@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 const fs = require("fs");
 
-const ROOM = "msg"; // your tlk.io room
+const ROOM = "test"; // your tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
 const LAST_FILE = "lastMessages.json";
 
@@ -43,42 +43,40 @@ function sleep(ms) {
   await sleep(5000);
 
   const html = await page.content();
+  fs.writeFileSync("debug.html", html); // always save for inspection
 
-  // Save debug.html for inspection
-  fs.writeFileSync("debug.html", html);
-
-  // Auto-detect messages: any visible element containing text
+  // Scrape chat messages
   const messages = await page.evaluate(() => {
     const out = [];
-    // Select all elements with text content
-    const nodes = Array.from(document.querySelectorAll("*")).filter(
-      el => el.textContent && el.offsetParent !== null // visible
-    );
-
-    nodes.forEach(node => {
-      const text = node.textContent.trim();
-      // Heuristic: ignore very short texts like username only or empty
-      if (text.length > 1) {
-        // Try to detect username
-        let user = "Anonymous";
+    // Select main chat container(s)
+    const chatContainers = document.querySelectorAll(".messages, .tlkio-messages, [data-role='messages']");
+    chatContainers.forEach(container => {
+      const nodes = container.querySelectorAll("[data-role='message'], .message, .tlk-message");
+      nodes.forEach(node => {
         const userEl = node.querySelector(".username, .tlk-username, .user");
-        if (userEl) user = userEl.textContent.trim();
+        const textEl = node.querySelector(".body, .tlk-body, .message-text");
+
+        if (!textEl) return; // ignore elements without text
+
+        const text = textEl.textContent.trim();
+        if (!text) return;
+
+        const user = userEl?.textContent.trim() || "Anonymous";
 
         out.push({ user, text });
-      }
+      });
     });
-
     return out;
   });
 
   await browser.close();
 
   if (!messages || messages.length === 0) {
-    console.log("⚠️ No messages detected. Check debug.html");
+    console.log("⚠️ No chat messages found. Check debug.html");
     return;
   }
 
-  // Filter only new messages
+  // Filter new messages
   const newOnes = messages.filter(
     m => !seen.find(s => s.user === m.user && s.text === m.text)
   );
