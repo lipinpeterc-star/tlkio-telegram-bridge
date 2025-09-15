@@ -1,4 +1,3 @@
-// bridge.js
 const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 
@@ -39,28 +38,51 @@ function sleep(ms) {
 
   await page.goto(URL, { waitUntil: "networkidle2" });
 
-  // wait a little so JS loads messages
+  // wait so JS can load messages
   await sleep(5000);
 
   const messages = await page.evaluate(() => {
-    const nodes = document.querySelectorAll(".messages .message");
+    // possible selectors tlk.io has used
+    const selectors = [
+      ".messages .message",                // older
+      ".tlkio-messages .tlk-message",      // newer
+      "[data-role='message']"              // fallback
+    ];
+
     let out = [];
-    nodes.forEach(node => {
-      const user = node.querySelector(".username")?.textContent.trim() || "Anonymous";
-      const text = node.querySelector(".body")?.textContent.trim() || "";
-      if (text) out.push({ user, text });
-    });
+    for (const sel of selectors) {
+      const nodes = document.querySelectorAll(sel);
+      if (nodes.length > 0) {
+        nodes.forEach(node => {
+          const user =
+            node.querySelector(".username")?.textContent.trim() ||
+            node.querySelector(".tlk-username")?.textContent.trim() ||
+            "Anonymous";
+          const text =
+            node.querySelector(".body")?.textContent.trim() ||
+            node.querySelector(".tlk-body")?.textContent.trim() ||
+            node.textContent.trim();
+          if (text) out.push({ user, text });
+        });
+        break; // stop at first selector that matches
+      }
+    }
     return out;
   });
 
   await browser.close();
+
+  if (!messages || messages.length === 0) {
+    console.log("⚠️ No messages found in page DOM");
+    return;
+  }
 
   const newOnes = messages.filter(
     m => !seen.find(s => s.user === m.user && s.text === m.text)
   );
 
   if (newOnes.length === 0) {
-    console.log("⚠️ No new messages");
+    console.log("⚠️ No new messages since last check");
     return;
   }
 
