@@ -2,9 +2,9 @@ const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 const fs = require("fs");
 
-const ROOM = "msg"; // tlk.io room
+const ROOM = "test"; // your tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
-const LAST_FILE = "lastMessages.json"; // to store seen messages
+const LAST_FILE = "lastMessages.json";
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -14,7 +14,7 @@ if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
   process.exit(1);
 }
 
-// Load last seen messages
+// Load last messages
 let seen = [];
 if (fs.existsSync(LAST_FILE)) {
   try {
@@ -40,47 +40,45 @@ function sleep(ms) {
   const page = await browser.newPage();
 
   await page.goto(URL, { waitUntil: "networkidle2" });
-  await sleep(5000); // wait for messages to render
+  await sleep(5000);
 
   const html = await page.content();
 
-  const messages = await page.evaluate(() => {
-    const selectors = [
-      ".messages .message",
-      ".tlkio-messages .tlk-message",
-      "[data-role='message']"
-    ];
+  // Save debug.html for inspection
+  fs.writeFileSync("debug.html", html);
 
-    let out = [];
-    for (const sel of selectors) {
-      const nodes = document.querySelectorAll(sel);
-      if (nodes.length > 0) {
-        nodes.forEach(node => {
-          const user =
-            node.querySelector(".username")?.textContent.trim() ||
-            node.querySelector(".tlk-username")?.textContent.trim() ||
-            "Anonymous";
-          const text =
-            node.querySelector(".body")?.textContent.trim() ||
-            node.querySelector(".tlk-body")?.textContent.trim() ||
-            node.textContent.trim();
-          if (text) out.push({ user, text });
-        });
-        break; // use first selector that matches
+  // Auto-detect messages: any visible element containing text
+  const messages = await page.evaluate(() => {
+    const out = [];
+    // Select all elements with text content
+    const nodes = Array.from(document.querySelectorAll("*")).filter(
+      el => el.textContent && el.offsetParent !== null // visible
+    );
+
+    nodes.forEach(node => {
+      const text = node.textContent.trim();
+      // Heuristic: ignore very short texts like username only or empty
+      if (text.length > 1) {
+        // Try to detect username
+        let user = "Anonymous";
+        const userEl = node.querySelector(".username, .tlk-username, .user");
+        if (userEl) user = userEl.textContent.trim();
+
+        out.push({ user, text });
       }
-    }
+    });
+
     return out;
   });
 
   await browser.close();
 
   if (!messages || messages.length === 0) {
-    fs.writeFileSync("debug.html", html);
-    console.log("⚠️ No messages found. Saved debug.html for inspection");
+    console.log("⚠️ No messages detected. Check debug.html");
     return;
   }
 
-  // filter new messages
+  // Filter only new messages
   const newOnes = messages.filter(
     m => !seen.find(s => s.user === m.user && s.text === m.text)
   );
@@ -95,6 +93,6 @@ function sleep(ms) {
     }
   }
 
-  // save last messages
+  // Save last messages
   fs.writeFileSync(LAST_FILE, JSON.stringify(messages, null, 2));
 })();
