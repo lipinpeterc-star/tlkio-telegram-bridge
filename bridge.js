@@ -2,7 +2,7 @@
 const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 
-const ROOM = "your-room-name"; // change this
+const ROOM = "test"; // change this
 const URL = `https://tlk.io/${ROOM}`;
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
