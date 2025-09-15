@@ -40,46 +40,32 @@ function sleep(ms) {
   const page = await browser.newPage();
 
   await page.goto(URL, { waitUntil: "networkidle2" });
-  await sleep(5000); // wait for messages to render
+  await sleep(5000);
 
   const html = await page.content();
-  fs.writeFileSync("debug.html", html); // save for inspection
 
+  // Save debug.html for inspection
+  fs.writeFileSync("debug.html", html);
+
+  // Auto-detect messages: any visible element containing text
   const messages = await page.evaluate(() => {
     const out = [];
-
-    // Find all chat containers automatically
-    const chatContainers = Array.from(
-      document.querySelectorAll("div, section")
-    ).filter(
-      el =>
-        el.querySelector("[data-role='message'], .message, .tlk-message") &&
-        el.offsetParent !== null // visible
+    // Select all elements with text content
+    const nodes = Array.from(document.querySelectorAll("*")).filter(
+      el => el.textContent && el.offsetParent !== null // visible
     );
 
-    chatContainers.forEach(container => {
-      const nodes = container.querySelectorAll(
-        "[data-role='message'], .message, .tlk-message"
-      );
-
-      nodes.forEach(node => {
-        // Username detection
-        const userEl = node.querySelector(
-          ".username, .tlk-username, .user"
-        );
-        const user = userEl?.textContent.trim() || "Anonymous";
-
-        // Message text detection
-        const textEl = node.querySelector(
-          ".body, .tlk-body, .message-text"
-        );
-        if (!textEl) return;
-
-        const text = textEl.textContent.trim();
-        if (!text) return;
+    nodes.forEach(node => {
+      const text = node.textContent.trim();
+      // Heuristic: ignore very short texts like username only or empty
+      if (text.length > 1) {
+        // Try to detect username
+        let user = "Anonymous";
+        const userEl = node.querySelector(".username, .tlk-username, .user");
+        if (userEl) user = userEl.textContent.trim();
 
         out.push({ user, text });
-      });
+      }
     });
 
     return out;
@@ -88,11 +74,11 @@ function sleep(ms) {
   await browser.close();
 
   if (!messages || messages.length === 0) {
-    console.log("⚠️ No chat messages found. Check debug.html");
+    console.log("⚠️ No messages detected. Check debug.html");
     return;
   }
 
-  // Filter new messages
+  // Filter only new messages
   const newOnes = messages.filter(
     m => !seen.find(s => s.user === m.user && s.text === m.text)
   );
