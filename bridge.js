@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
 const fs = require("fs");
 
-const ROOM = "test"; // your tlk.io room
+const ROOM = "msg"; // your tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
 const LAST_FILE = "lastMessages.json";
 
