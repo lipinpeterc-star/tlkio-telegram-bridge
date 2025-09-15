@@ -1,19 +1,15 @@
 // bridge.js
 const https = require('https');
-// Import the RSS Parser library correctly
+// Import the libraries
 const Parser = require('rss-parser');
+const fetch = require('node-fetch'); // Import node-fetch
 
 // ——— CONFIGURATION ——— //
-// !!! IMPORTANT: We will set these secrets in GitHub !!!
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = process.env.CHAT_ID;
-const RSS_FEED_URL = process.env.RSS_FEED_URL; // e.g., "https://tlk.io/yourroomname.rss"
+const RSS_FEED_URL = process.env.RSS_FEED_URL;
 
-// Create a new parser instance
 const parser = new Parser();
-
-// A simple in-memory store for the last message.
-// This is reset every time the action runs, so we use a hidden file for persistence.
 const fs = require('fs');
 const STATE_FILE = '.last_message_state.txt';
 
@@ -21,7 +17,7 @@ function getLastMessageTitle() {
     try {
         return fs.readFileSync(STATE_FILE, 'utf8').trim();
     } catch (error) {
-        return ''; // File doesn't exist yet
+        return '';
     }
 }
 
@@ -33,54 +29,54 @@ async function checkRSS() {
     let lastMessageTitle = getLastMessageTitle();
     console.log('🤖 Checking tlk.io RSS feed...');
 
-    // Simple retry mechanism - try 3 times before giving up
     const maxRetries = 3;
     let retryCount = 0;
 
     while (retryCount < maxRetries) {
         try {
-            const feed = await parser.parseURL(RSS_FEED_URL, {
-                timeout: 10000, // FIX: Wait up to 10 seconds for a response (default is much lower)
-                requestOptions: {
-                    headers: {
-                        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'accept-language': 'en-US,en;q=0.9',
-                        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-                        'sec-ch-ua-mobile': '?0',
-                        'sec-ch-ua-platform': '"Windows"',
-                        'sec-fetch-dest': 'document',
-                        'sec-fetch-mode': 'navigate',
-                        'sec-fetch-site': 'none',
-                        'sec-fetch-user': '?1',
-                        'upgrade-insecure-requests': '1',
-                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-                    }
-                }
+            // FIX: Use node-fetch for a more robust and configurable HTTP request
+            console.log(`📡 Attempt ${retryCount + 1}/${maxRetries}: Fetching RSS feed...`);
+            const response = await fetch(RSS_FEED_URL, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept': 'application/xml, text/xml, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                },
+                // 15 second timeout
+                timeout: 15000,
             });
 
-            // FIX: Add defensive checks here!
+            // Check if the request was successful
+            if (!response.ok) {
+                throw new Error(`HTTP Error! Status: ${response.status} ${response.statusText}`);
+            }
+
+            // Get the response text (XML)
+            const xmlText = await response.text();
+            console.log('✅ Successfully fetched RSS feed.');
+
+            // Now parse the XML text with rss-parser
+            const feed = await parser.parseString(xmlText);
+
+            // --- Defensive checks remain the same from here ---
             if (!feed) {
                 console.log('❌ Error: Feed object is undefined or null.');
                 return;
             }
-
             if (!feed.items || !Array.isArray(feed.items)) {
-                console.log('❌ Error: Feed items is not an array or is missing.', feed);
+                console.log('❌ Error: Feed items is not an array or is missing.');
                 return;
             }
-
             console.log(`ℹ️ Found ${feed.items.length} items in the feed.`);
-
             if (feed.items.length > 0) {
                 const latestMessage = feed.items[0];
-                // Check if the items have the properties we expect
                 if (!latestMessage.title) {
-                    console.log('❌ Error: The latest message does not have a title property.', latestMessage);
+                    console.log('❌ Error: The latest message does not have a title property.');
                     return;
                 }
                 if (latestMessage.title !== lastMessageTitle) {
                     console.log('✅ New message found!: ' + latestMessage.title);
-                    // Use optional chaining (?.) and a fallback in case 'creator' is missing
                     const creator = latestMessage.creator || 'Unknown';
                     const telegramMessage = `💬 New message in tlk.io\\nFrom: ${creator}\\nMessage: ${latestMessage.title}`;
                     await sendToTelegram(telegramMessage);
@@ -91,29 +87,27 @@ async function checkRSS() {
             } else {
                 console.log('ℹ️ Feed is empty. No messages found.');
             }
-            // If we get here, everything worked! Break out of the retry loop.
+            // Success! Break out of the retry loop.
             break;
 
         } catch (error) {
             retryCount++;
             console.error(`❌ Attempt ${retryCount}/${maxRetries} failed:`, error.message);
-
             if (retryCount >= maxRetries) {
                 console.error('❌ All retry attempts failed. Giving up.');
                 break;
             }
-
-            // Wait 2 seconds before trying again
-            console.log(`🔄 Retrying in 2 seconds...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log(`🔄 Retrying in 3 seconds...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
         }
     }
 }
+
 async function sendToTelegram(message) {
     const data = JSON.stringify({
         chat_id: CHAT_ID,
         text: message,
-        disable_notification: false // Set to true if you don't want a sound
+        disable_notification: false
     });
 
     const options = {
@@ -139,11 +133,9 @@ async function sendToTelegram(message) {
                 }
             });
         });
-
         req.on('error', (error) => {
             reject(error);
         });
-
         req.write(data);
         req.end();
     });
