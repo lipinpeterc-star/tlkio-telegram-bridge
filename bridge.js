@@ -43,7 +43,7 @@ function sleep(ms) {
   await sleep(5000);
 
   const html = await page.content();
-  fs.writeFileSync("debug.html", html); // save for inspection
+  fs.writeFileSync("debug.html", html); // temporarily save
 
   // Select post-message elements
   const messages = await page.evaluate(() => {
@@ -71,24 +71,31 @@ function sleep(ms) {
 
   if (!messages || messages.length === 0) {
     console.log("⚠️ No chat messages found. Check debug.html");
-    return;
-  }
-
-  // Filter only new messages using timestamp
-  const newOnes = messages.filter(
-    m => !seen.find(s => s.timestamp === m.timestamp)
-  );
-
-  if (newOnes.length === 0) {
-    console.log("⚠️ No new messages since last check");
   } else {
-    for (const msg of newOnes) {
-      const fullMsg = `💬 New message in ${ROOM}\n👤 ${msg.user}\n📝 ${msg.text}`;
-      console.log(fullMsg);
-      await sendToTelegram(fullMsg);
+    // Filter only new messages
+    const newOnes = messages.filter(
+      m => !seen.find(s => s.timestamp === m.timestamp)
+    );
+
+    if (newOnes.length === 0) {
+      console.log("⚠️ No new messages since last check");
+    } else {
+      for (const msg of newOnes) {
+        const fullMsg = `💬 New message in ${ROOM}\n👤 ${msg.user}\n📝 ${msg.text}`;
+        console.log(fullMsg);
+        await sendToTelegram(fullMsg);
+      }
     }
+
+    // Save last messages
+    fs.writeFileSync(LAST_FILE, JSON.stringify(messages, null, 2));
   }
 
-  // Save last messages
-  fs.writeFileSync(LAST_FILE, JSON.stringify(messages, null, 2));
+  // Delete debug.html after run
+  try {
+    fs.unlinkSync("debug.html");
+    console.log("🗑️ debug.html deleted after run");
+  } catch (err) {
+    console.warn("⚠️ Could not delete debug.html:", err.message);
+  }
 })();
