@@ -2,7 +2,7 @@ name: Run Telegram Bridge
 
 on:
   schedule:
-    - cron: '*/20 * * * *' # Runs every 2 minutes, 24/7
+    - cron: '*/99999999 * * * *' # Runs every 2 minutes, 24/7
   workflow_dispatch: # Allows you to run it manually from the GitHub UI
 
 jobs:
