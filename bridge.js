@@ -40,32 +40,48 @@ function sleep(ms) {
   const page = await browser.newPage();
 
   await page.goto(URL, { waitUntil: "networkidle2" });
-  await sleep(5000);
+  await sleep(5000); // wait for messages to render
 
   const html = await page.content();
-  fs.writeFileSync("debug.html", html); // always save for inspection
+  fs.writeFileSync("debug.html", html); // save for inspection
 
-  // Scrape chat messages
   const messages = await page.evaluate(() => {
     const out = [];
-    // Select main chat container(s)
-    const chatContainers = document.querySelectorAll(".messages, .tlkio-messages, [data-role='messages']");
-    chatContainers.forEach(container => {
-      const nodes = container.querySelectorAll("[data-role='message'], .message, .tlk-message");
-      nodes.forEach(node => {
-        const userEl = node.querySelector(".username, .tlk-username, .user");
-        const textEl = node.querySelector(".body, .tlk-body, .message-text");
 
-        if (!textEl) return; // ignore elements without text
+    // Find all chat containers automatically
+    const chatContainers = Array.from(
+      document.querySelectorAll("div, section")
+    ).filter(
+      el =>
+        el.querySelector("[data-role='message'], .message, .tlk-message") &&
+        el.offsetParent !== null // visible
+    );
+
+    chatContainers.forEach(container => {
+      const nodes = container.querySelectorAll(
+        "[data-role='message'], .message, .tlk-message"
+      );
+
+      nodes.forEach(node => {
+        // Username detection
+        const userEl = node.querySelector(
+          ".username, .tlk-username, .user"
+        );
+        const user = userEl?.textContent.trim() || "Anonymous";
+
+        // Message text detection
+        const textEl = node.querySelector(
+          ".body, .tlk-body, .message-text"
+        );
+        if (!textEl) return;
 
         const text = textEl.textContent.trim();
         if (!text) return;
 
-        const user = userEl?.textContent.trim() || "Anonymous";
-
         out.push({ user, text });
       });
     });
+
     return out;
   });
 
