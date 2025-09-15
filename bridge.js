@@ -45,27 +45,25 @@ function sleep(ms) {
   const html = await page.content();
   fs.writeFileSync("debug.html", html); // save for inspection
 
-  // Only select chat s, ignore headers/footers
-  const s = await page.evaluate(() => {
+  // Select post-message elements
+  const messages = await page.evaluate(() => {
     const out = [];
-    // Find main chat container
-    const containers = document.querySelectorAll(".s, .tlkio-s, [data-role='messages']");
-    containers.forEach(container => {
-      // Each chat line
-      const nodes = container.querySelectorAll("[data-role='message'], .message, .post-message");
-      nodes.forEach(node => {
-        const userEl = node.querySelector(".username, .tlk-username, .user");
-        const user = userEl ? userEl.textContent.trim() : "Anonymous";
+    const nodes = document.querySelectorAll("dd.post-message");
 
-        const textEl = node.querySelector(".body, .tlk-body, .message-text");
-        if (!textEl) return;
+    nodes.forEach(node => {
+      // Get direct text content, ignoring child divs
+      const text = Array.from(node.childNodes)
+        .filter(n => n.nodeType === Node.TEXT_NODE)
+        .map(n => n.textContent.trim())
+        .join(" ")
+        .trim();
 
-        const text = textEl.textContent.trim();
-        if (!text) return;
+      if (!text) return;
 
-        out.push({ user, text });
-      });
+      const timestamp = node.getAttribute("data-timestamp") || Date.now();
+      out.push({ user: "Anonymous", text, timestamp });
     });
+
     return out;
   });
 
@@ -76,9 +74,9 @@ function sleep(ms) {
     return;
   }
 
-  // Filter only new messages
+  // Filter only new messages using timestamp
   const newOnes = messages.filter(
-    m => !seen.find(s => s.user === m.user && s.text === m.text)
+    m => !seen.find(s => s.timestamp === m.timestamp)
   );
 
   if (newOnes.length === 0) {
