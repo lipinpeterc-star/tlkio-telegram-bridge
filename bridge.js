@@ -1,21 +1,9 @@
 // bridge.js
-const https = require('https');
-// Import the RSS Parser library correctly
-const Parser = require('rss-parser');
-// FIX: Use the correct import syntax for node-fetch
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-// ——— CONFIGURATION ——— //
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
-const RSS_FEED_URL = process.env.RSS_FEED_URL;
-// ... the rest of your code remains exactly the same ...
-
-// bridge.js
-const https = require('https');
 // Import the libraries
+const https = require('https');
 const Parser = require('rss-parser');
-const fetch = require('node-fetch'); // Import node-fetch
+// Use the correct import syntax for node-fetch
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 // ——— CONFIGURATION ——— //
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -47,7 +35,7 @@ async function checkRSS() {
 
     while (retryCount < maxRetries) {
         try {
-            // FIX: Use node-fetch for a more robust and configurable HTTP request
+            // Use node-fetch for a more robust and configurable HTTP request
             console.log(`📡 Attempt ${retryCount + 1}/${maxRetries}: Fetching RSS feed...`);
             const response = await fetch(RSS_FEED_URL, {
                 method: 'GET',
@@ -72,7 +60,7 @@ async function checkRSS() {
             // Now parse the XML text with rss-parser
             const feed = await parser.parseString(xmlText);
 
-            // --- Defensive checks remain the same from here ---
+            // Defensive checks
             if (!feed) {
                 console.log('❌ Error: Feed object is undefined or null.');
                 return;
