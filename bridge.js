@@ -1,11 +1,7 @@
-// bridge.js
-const WebSocket = require("ws");
+const { io } = require("socket.io-client");
 const fetch = require("node-fetch");
 
-// 🔧 Replace with your room
-const ROOM = "test";
-const WS_URL = `wss://tlk.io/socket.io/?EIO=3&transport=websocket&room=${ROOM}`;
-
+const ROOM = "your-room-name";
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -13,6 +9,30 @@ if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
   console.error("❌ Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID");
   process.exit(1);
 }
+
+// Connect to tlk.io via socket.io
+const socket = io("https://tlk.io", {
+  path: "/socket.io",
+  transports: ["websocket"],
+  query: { room: ROOM },
+});
+
+socket.on("connect", () => {
+  console.log("✅ Connected to tlk.io room:", ROOM);
+});
+
+socket.on("disconnect", () => {
+  console.log("❌ Disconnected from tlk.io");
+});
+
+socket.on("message", (msg) => {
+  const user = msg?.author?.name || "Anonymous";
+  const text = msg?.body || "";
+  const fullMsg = `💬 New message in ${ROOM}\n👤 ${user}\n📝 ${text}`;
+
+  console.log(fullMsg);
+  sendToTelegram(fullMsg);
+});
 
 async function sendToTelegram(msg) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
@@ -26,42 +46,3 @@ async function sendToTelegram(msg) {
     console.error("❌ Telegram error:", err);
   }
 }
-
-console.log("🔗 Connecting to tlk.io room:", ROOM);
-
-const ws = new WebSocket(WS_URL);
-
-ws.on("open", () => {
-  console.log("✅ Connected to tlk.io WebSocket");
-});
-
-ws.on("message", (data) => {
-  const msg = data.toString();
-
-  // tlk.io uses socket.io protocol (messages start with numbers + JSON)
-  if (msg.startsWith("42")) {
-    try {
-      const payload = JSON.parse(msg.slice(2)); // strip socket.io prefix
-      const [event, content] = payload;
-
-      if (event === "message") {
-        const user = content.author && content.author.name ? content.author.name : "Anonymous";
-        const text = content.body || "";
-        const fullMsg = `💬 New message in ${ROOM}\n👤 ${user}\n📝 ${text}`;
-
-        console.log(fullMsg);
-        sendToTelegram(fullMsg);
-      }
-    } catch (err) {
-      console.error("⚠️ Parse error:", err);
-    }
-  }
-});
-
-ws.on("close", () => {
-  console.log("❌ Disconnected from WebSocket");
-});
-
-ws.on("error", (err) => {
-  console.error("⚠️ WebSocket error:", err);
-});
