@@ -2,7 +2,7 @@
 const fetch = require("node-fetch");
 const fs = require("fs");
 
-const ROOM = "your-room-name"; // 👈 replace with your tlk.io room
+const ROOM = "msg"; // 👈 replace with your tlk.io room
 const URL = `https://tlk.io/${ROOM}`;
 const STATE_FILE = "lastMessage.txt";
 
