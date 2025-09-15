@@ -1,28 +1,40 @@
-name: tlk.io → Telegram (Puppeteer)
+name: tlk.io → Telegram (Puppeteer Poller)
 
 on:
   schedule:
-    - cron: "*/99999999 * * * *"   # every 5 minutes
-  workflow_dispatch:        # allow manual run
+    - cron: "*/57777 * * * *"   # every 5 minutes
+  workflow_dispatch:        # allow manual trigger
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout repo
       - uses: actions/checkout@v3
 
-      - name: Setup Node
+      # 2️⃣ Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: "18"
 
-      - name: Install deps
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
         run: |
           npm init -y
           npm install puppeteer node-fetch@2
 
-      - name: Run bridge
+      # 4️⃣ Run bridge script
+      - name: Run bridge.js
         run: node bridge.js
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      # 5️⃣ Upload debug HTML (if exists)
+      - name: Upload debug.html
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-html
+          path: debug.html
