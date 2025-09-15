@@ -1,8 +1,8 @@
 // bridge.js
+const puppeteer = require("puppeteer");
 const fetch = require("node-fetch");
-const { JSDOM } = require("jsdom");
 
-const ROOM = "msg"; // change this
+const ROOM = "your-room-name"; // change this
 const URL = `https://tlk.io/${ROOM}`;
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -13,46 +13,46 @@ if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) {
   process.exit(1);
 }
 
-// store last seen messages in memory (resets each run in Actions)
 let seen = [];
-
-async function getMessages() {
-  try {
-    const res = await fetch(URL);
-    const html = await res.text();
-
-    const dom = new JSDOM(html);
-    const nodes = dom.window.document.querySelectorAll(".messages .message");
-
-    let messages = [];
-    nodes.forEach(node => {
-      const user = node.querySelector(".username")?.textContent.trim() || "Anonymous";
-      const text = node.querySelector(".body")?.textContent.trim() || "";
-      if (text) messages.push({ user, text });
-    });
-
-    return messages;
-  } catch (err) {
-    console.error("❌ Fetch error:", err);
-    return [];
-  }
-}
 
 async function sendToTelegram(msg) {
   const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: msg }),
-  });
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: msg }),
+    });
+  } catch (err) {
+    console.error("❌ Telegram error:", err);
+  }
 }
 
 (async () => {
-  console.log(`🔎 Checking room: ${ROOM}`);
-  const messages = await getMessages();
+  console.log(`🔎 Opening room: ${ROOM}`);
+  const browser = await puppeteer.launch({ args: ["--no-sandbox"] });
+  const page = await browser.newPage();
 
-  const newOnes = messages.filter(m =>
-    !seen.find(s => s.user === m.user && s.text === m.text)
+  await page.goto(URL, { waitUntil: "networkidle2" });
+
+  // wait a little so JS loads messages
+  await page.waitForTimeout(5000);
+
+  const messages = await page.evaluate(() => {
+    const nodes = document.querySelectorAll(".messages .message");
+    let out = [];
+    nodes.forEach(node => {
+      const user = node.querySelector(".username")?.textContent.trim() || "Anonymous";
+      const text = node.querySelector(".body")?.textContent.trim() || "";
+      if (text) out.push({ user, text });
+    });
+    return out;
+  });
+
+  await browser.close();
+
+  const newOnes = messages.filter(
+    m => !seen.find(s => s.user === m.user && s.text === m.text)
   );
 
   if (newOnes.length === 0) {
@@ -66,5 +66,5 @@ async function sendToTelegram(msg) {
     await sendToTelegram(fullMsg);
   }
 
-  seen = messages; // update memory
+  seen = messages;
 })();
