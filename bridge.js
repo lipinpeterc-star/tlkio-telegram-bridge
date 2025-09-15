@@ -34,11 +34,9 @@ async function checkRSS() {
     console.log('🤖 Checking tlk.io RSS feed...');
 
     try {
-        // FIX: Add headers to the request to avoid 406 error
         const feed = await parser.parseURL(RSS_FEED_URL, {
             requestOptions: {
                 headers: {
-                    // These headers make the request look like it's from a real web browser
                     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                     'accept-language': 'en-US,en;q=0.9',
                     'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
@@ -53,16 +51,39 @@ async function checkRSS() {
                 }
             }
         });
+
+        // FIX: Add defensive checks here!
+        if (!feed) {
+            console.log('❌ Error: Feed object is undefined or null.');
+            return;
+        }
+
+        if (!feed.items || !Array.isArray(feed.items)) {
+            console.log('❌ Error: Feed items is not an array or is missing.', feed);
+            return;
+        }
+
+        console.log(`ℹ️ Found ${feed.items.length} items in the feed.`);
+
         if (feed.items.length > 0) {
             const latestMessage = feed.items[0];
+            // Check if the items have the properties we expect
+            if (!latestMessage.title) {
+                console.log('❌ Error: The latest message does not have a title property.', latestMessage);
+                return;
+            }
             if (latestMessage.title !== lastMessageTitle) {
                 console.log('✅ New message found!: ' + latestMessage.title);
-                const telegramMessage = `💬 New message in tlk.io\\nFrom: ${latestMessage.creator}\\nMessage: ${latestMessage.title}`;
+                // Use optional chaining (?.) and a fallback in case 'creator' is missing
+                const creator = latestMessage.creator || 'Unknown';
+                const telegramMessage = `💬 New message in tlk.io\\nFrom: ${creator}\\nMessage: ${latestMessage.title}`;
                 await sendToTelegram(telegramMessage);
                 setLastMessageTitle(latestMessage.title);
             } else {
                 console.log('ℹ️ No new messages.');
             }
+        } else {
+            console.log('ℹ️ Feed is empty. No messages found.');
         }
     } catch (error) {
         console.error('❌ Error:', error);
