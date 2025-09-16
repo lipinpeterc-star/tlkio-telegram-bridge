@@ -2,6 +2,11 @@ name: Run tlk.io → Telegram
 
 on:
   workflow_dispatch:  # allows you to manually trigger the workflow
+  schedule:
+    # Every 5 minutes between 08:00 and 19:30 UTC (1:30 PM – 1:00 AM IST)
+    - cron: "*/5 8-19 * * *"
+    # Extra run at 07:30 UTC (1:00 PM IST)
+    - cron: "30 7 * * *"
 
 jobs:
   run-bridge:
@@ -26,9 +31,14 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      # 5️⃣ Upload debug.html if exists
+      # 5️⃣ Upload debug.html if script fails
       - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
+        if: failure()
         with:
           name: debug-html
           path: debug.html
+
+      # 6️⃣ Cleanup debug.html after run
+      - name: Cleanup
+        if: always()
+        run: rm -f debug.html
