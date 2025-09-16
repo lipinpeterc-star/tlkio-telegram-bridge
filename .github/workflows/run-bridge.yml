@@ -1,25 +1,24 @@
 name: Run tlk.io → Telegram
 
 on:
-  workflow_dispatch:  # manual trigger
-  schedule:
-    - cron: "*/2 * * * *"  # every 2 minutes
+  workflow_dispatch:  # allows you to manually trigger the workflow
 
 jobs:
   run-bridge:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout your repo
       - uses: actions/checkout@v5
 
       # 2️⃣ Setup Node.js
       - uses: actions/setup-node@v5
         with:
           node-version: "18"
-          cache: "npm"   # enable npm dependency caching
 
-      # 3️⃣ Install dependencies (cached)
-      - run: npm install
+      # 3️⃣ Install dependencies
+      - run: |
+          npm init -y
+          npm install puppeteer node-fetch@2
 
       # 4️⃣ Run your JS file
       - run: node bridge.js
