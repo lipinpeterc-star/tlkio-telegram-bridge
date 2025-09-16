@@ -1,7 +1,7 @@
 name: Run tlk.io → Telegram
 
 on:
-  workflow_dispatch:  # manual trigger
+  workflow_dispatch:  # allow manual trigger
   schedule:
     # Every 2 minutes from 05:00 UTC (10:30 IST) to 18:59 UTC (00:29 IST next day)
     - cron: "*/2 5-18 * * *"
@@ -9,20 +9,22 @@ on:
 jobs:
   run-bridge:
     runs-on: ubuntu-latest
+
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout your repo
       - uses: actions/checkout@v5
 
-      # 2️⃣ Setup Node.js
+      # 2️⃣ Setup Node.js with caching
       - uses: actions/setup-node@v5
         with:
           node-version: "18"
-          cache: "npm"   # enable npm dependency caching
+          cache: "npm"
 
-      # 3️⃣ Install dependencies (cached)
-      - run: npm install
+      # 3️⃣ Install dependencies (uses package.json + cache)
+      - name: Install dependencies
+        run: npm install
 
-      # 4️⃣ Run your JS file
+      # 4️⃣ Run your bridge script
       - name: Run bridge.js
         run: node bridge.js
         env:
