@@ -5,8 +5,6 @@ on:
   schedule:
     # Every 5 minutes between 08:00 and 19:30 UTC (1:30 PM – 1:00 AM IST)
     - cron: "*/5 8-19 * * *"
-    # Extra run at 07:30 UTC (1:00 PM IST)
-    - cron: "30 7 * * *"
 
 jobs:
   run-bridge:
