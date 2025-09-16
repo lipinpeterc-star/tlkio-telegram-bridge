@@ -1,40 +1,35 @@
 name: Run tlk.io → Telegram
 
 on:
-  workflow_dispatch:  # allow manual trigger
+  workflow_dispatch:  # manual trigger
   schedule:
-    # Every 2 minutes from 05:00 UTC (10:30 IST) to 18:59 UTC (00:29 IST next day)
-    - cron: "*/2 5-18 * * *"
+    - cron: "*/2 * * * *"  # every 2 minutes
 
 jobs:
   run-bridge:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Checkout your repo
+      # 1️⃣ Checkout repo
       - uses: actions/checkout@v5
 
-      # 2️⃣ Setup Node.js with caching
+      # 2️⃣ Setup Node.js
       - uses: actions/setup-node@v5
         with:
           node-version: "18"
-          cache: "npm"
+          cache: "npm"   # enable npm dependency caching
 
-      # 3️⃣ Install dependencies (uses package.json + cache)
-      - name: Install dependencies
-        run: npm install
+      # 3️⃣ Install dependencies (cached)
+      - run: npm install
 
-      # 4️⃣ Run your bridge script
-      - name: Run bridge.js
-        run: node bridge.js
+      # 4️⃣ Run your JS file
+      - run: node bridge.js
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      # 5️⃣ Upload debug.html only if job fails AND file exists
-      - name: Upload debug.html on failure
-        if: failure()
-        run: |
-          if [ -f debug.html ]; then
-            echo "📤 Uploading debug.html"
-            tar -czf debug-html
+      # 5️⃣ Upload debug.html if exists
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: debug-html
+          path: debug.html
