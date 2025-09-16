@@ -3,7 +3,7 @@ name: Run tlk.io → Telegram
 on:
   workflow_dispatch:  # allows you to manually trigger the workflow
   schedule:
-    # Every 5 minutes between 08:00 and 19:30 UTC (1:30 PM – 1:00 AM IST)
+    # Every 5 minutes between 08:00–19:00 UTC (1:30 PM – 12:30 AM IST)
     - cron: "*/5 8-19 * * *"
 
 jobs:
