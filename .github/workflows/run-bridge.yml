@@ -31,15 +31,10 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      # 5️⃣ Upload debug.html only if job fails
+      # 5️⃣ Upload debug.html only if job fails AND file exists
       - name: Upload debug.html on failure
-        if: failure() && exists('debug.html')
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-html
-          path: debug.html
-
-      # 6️⃣ Always clean up debug.html
-      - name: Cleanup debug.html
-        if: always()
-        run: rm -f debug.html
+        if: failure()
+        run: |
+          if [ -f debug.html ]; then
+            echo "📤 Uploading debug.html"
+            tar -czf debug-html
